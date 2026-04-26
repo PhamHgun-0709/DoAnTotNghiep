@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16
+    container_name: adanalytics-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ad_analytics
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "07092004"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ad_analytics"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../../
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: adanalytics-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:07092004@db:5432/ad_analytics
+      CORS_ORIGINS: http://127.0.0.1:8080,http://localhost:8080
+      REQUIRE_UPLOAD_DATA: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../data:/workspace/data
+
+  web:
+    build:
+      context: ../../
+      dockerfile: infra/docker/frontend.Dockerfile
+    container_name: adanalytics-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres_data:
