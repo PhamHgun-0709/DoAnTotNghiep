@@ -9,6 +9,9 @@ COPY api/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY api /workspace/api
+COPY alembic.ini /workspace/alembic.ini
+COPY alembic /workspace/alembic
+COPY scripts /workspace/scripts
 COPY data /workspace/data
 
 EXPOSE 8000

@@ -9,7 +9,7 @@ import psycopg
 from psycopg import Connection
 
 
-DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/ad_analytics"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/ad_analytics"
 _SCHEMA_INITIALIZED = False
 _SCHEMA_LOCK = threading.Lock()
 
@@ -18,9 +18,18 @@ def get_database_url() -> str:
     return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
+def _normalize_for_psycopg(dsn: str) -> str:
+    # SQLAlchemy uses the driver-prefix form 'postgresql+psycopg://',
+    # but psycopg.connect expects a normal libpq-style DSN starting with
+    # 'postgresql://'. Normalize here so both can share the same env var.
+    if dsn.startswith("postgresql+psycopg://"):
+        return dsn.replace("postgresql+psycopg://", "postgresql://", 1)
+    return dsn
+
 @contextmanager
 def get_connection() -> Iterator[Connection]:
-    conn = psycopg.connect(get_database_url(), connect_timeout=3)
+    raw = get_database_url()
+    conn = psycopg.connect(_normalize_for_psycopg(raw), connect_timeout=3)
     try:
         yield conn
         conn.commit()
@@ -29,7 +38,6 @@ def get_connection() -> Iterator[Connection]:
         raise
     finally:
         conn.close()
-
 
 def init_db_schema(force: bool = False) -> None:
     global _SCHEMA_INITIALIZED
@@ -42,35 +50,6 @@ def init_db_schema(force: bool = False) -> None:
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    username TEXT PRIMARY KEY,
-                    password_hash TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    full_name TEXT NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS auth_sessions (
-                    token TEXT PRIMARY KEY,
-                    username TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    full_name TEXT NOT NULL,
-                    issued_at TIMESTAMPTZ NOT NULL,
-                    expires_at TIMESTAMPTZ NOT NULL
-                );
-                """
-            )
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at
-                ON auth_sessions (expires_at);
-                """
-            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS upload_logs (
@@ -86,8 +65,31 @@ def init_db_schema(force: bool = False) -> None:
                 """
             )
 
-    _SCHEMA_INITIALIZED = True
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS datasets (
+                    id BIGSERIAL PRIMARY KEY,
+                    filename TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    uploaded_by TEXT NOT NULL,
+                    uploaded_role TEXT NOT NULL,
+                    active BOOLEAN NOT NULL DEFAULT FALSE,
+                    scored_rows INTEGER NOT NULL DEFAULT 0,
+                    segment_rows INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """
+            )
 
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_datasets_active_created_at
+                ON datasets (active, created_at DESC);
+                """
+            )
+
+    _SCHEMA_INITIALIZED = True
 
 def is_db_ready() -> bool:
     try:

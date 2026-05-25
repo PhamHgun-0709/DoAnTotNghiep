@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: adanalytics-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ad_analytics
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ad_analytics"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ../../
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: adanalytics-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/ad_analytics}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ad_analytics
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      CORS_ORIGINS: http://127.0.0.1:8501,http://localhost:8501,http://127.0.0.1:8000,http://localhost:8000
+      REQUIRE_UPLOAD_DATA: "true"
+      PYTHONUNBUFFERED: "1"
+      # Auth / migration envs (override in production)
+      AUTH_SECRET: ${AUTH_SECRET:-local-dev-secret}
+      AUTH_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      ADMIN_USERNAME: "admin"
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../data:/workspace/data
+      - ../../spark:/workspace/spark
+      - ../../alembic.ini:/workspace/alembic.ini
+      - ../../alembic:/workspace/alembic
+      - ../../scripts:/workspace/scripts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: /bin/sh -c "alembic upgrade head && uvicorn app.main:app --app-dir api --host 0.0.0.0 --port 8000"
+
+  # Streamlit Dashboard
+  streamlit:
+    build:
+      context: ../../
+      dockerfile: infra/docker/streamlit.Dockerfile
+    container_name: adanalytics-streamlit
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - api
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../../giao-dien:/app/giao-dien
+      - ../../data:/workspace/data
+    working_dir: /app
+    command: streamlit run giao-dien/streamlit_app.py --server.port=8501 --server.address=0.0.0.0 --logger.level=debug
+
+volumes:
+  postgres_data: {}

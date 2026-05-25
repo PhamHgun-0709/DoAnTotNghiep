@@ -1,21 +1,33 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 from functools import lru_cache
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.services.dataset_manager import (
+    append_dataset_history as _append_dataset_history,
+    load_active_dataset as _load_active_dataset,
+    load_dataset_history as _load_dataset_history,
+    save_active_dataset as _save_active_dataset,
+    deactivate_active_dataset as _deactivate_active_dataset,
+    activate_dataset_by_id as _activate_dataset_by_id,
+)
 from app.services.upload_log_service import read_upload_logs_page
 
 
 NUMERIC_FIELDS = {
     "impressions",
     "clicks",
-    "spent",
-    "approved_conversion",
+    "conversions",
+    "spend",
+    "revenue",
     "ctr",
     "cpc",
+    "cpm",
     "cvr",
     "cpa",
     "quality_score",
@@ -24,12 +36,12 @@ NUMERIC_FIELDS = {
 RECOMMENDATION_NUMERIC_FIELDS = {
     "ads_count",
     "total_spent",
-    "total_approved_conversion",
+    "total_conversions",
     "avg_ctr",
     "avg_cvr",
     "avg_cpa",
     "good_ratio",
-    "conversion_per_spent",
+    "conversion_per_spend",
     "recommendation_score",
     "recommended_weight",
 }
@@ -37,25 +49,30 @@ RECOMMENDATION_NUMERIC_FIELDS = {
 RECOMMENDATION_STRING_FIELDS = {
     "segment_id",
     "campaign_id",
-    "age",
-    "gender",
+    "age_group",
     "suggested_action",
 }
 
 STRING_FIELDS = {
     "ad_id",
     "campaign_id",
-    "fb_campaign_id",
-    "reporting_start",
-    "reporting_end",
-    "age",
-    "gender",
+    "date",
+    "platform",
+    "age_group",
     "quality_label",
 }
 
 
 def _project_root() -> Path:
     return Path(__file__).resolve().parents[3]
+
+
+def _active_dataset_metadata_file() -> Path:
+    return _project_root() / "data" / "metadata" / "current_dataset.json"
+
+
+def _dataset_history_file() -> Path:
+    return _project_root() / "data" / "metadata" / "dataset_history.json"
 
 
 def _latest_spark_output_file() -> Path:
@@ -178,3 +195,42 @@ def load_budget_recommendations() -> list[dict[str, Any]]:
 def reload_budget_recommendations() -> list[dict[str, Any]]:
     load_budget_recommendations.cache_clear()
     return load_budget_recommendations()
+
+
+def read_active_dataset_metadata() -> dict[str, Any] | None:
+    return _load_active_dataset()
+
+
+def write_active_dataset_metadata(
+    *,
+    file_name: str,
+    file_path: str,
+    uploaded_by: str,
+    uploaded_role: str,
+    scored_rows: int,
+    segment_rows: int,
+) -> dict[str, Any]:
+    return _save_active_dataset(
+        file_name=file_name,
+        file_path=file_path,
+        uploaded_by=uploaded_by,
+        uploaded_role=uploaded_role,
+        scored_rows=scored_rows,
+        segment_rows=segment_rows,
+    )
+
+
+def read_dataset_history(limit: int = 10) -> list[dict[str, Any]]:
+    return _load_dataset_history(limit=limit)
+
+
+def append_dataset_history(entry: dict[str, Any], limit: int = 20) -> list[dict[str, Any]]:
+    return _append_dataset_history(entry, limit=limit)
+
+
+def deactivate_active_dataset() -> dict[str, Any] | None:
+    return _deactivate_active_dataset()
+
+
+def activate_dataset_by_id(dataset_id: int) -> dict[str, Any] | None:
+    return _activate_dataset_by_id(int(dataset_id))

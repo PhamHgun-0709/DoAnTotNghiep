@@ -13,12 +13,6 @@ Start-Process powershell -ArgumentList @(
     "-Command", "Set-Location '$root'; ./scripts/run/run_api.ps1"
 )
 
-Start-Process powershell -ArgumentList @(
-    "-NoExit",
-    "-ExecutionPolicy", "Bypass",
-    "-Command", "Set-Location '$root'; ./scripts/run/run_frontend.ps1"
-)
-
 if ($WithStreamlit) {
     Start-Process powershell -ArgumentList @(
         "-NoExit",
@@ -29,7 +23,6 @@ if ($WithStreamlit) {
 
 Write-Output "Defense stack launched in separate terminals."
 Write-Output "API: http://127.0.0.1:8000"
-Write-Output "Frontend: http://127.0.0.1:5500"
 if ($WithStreamlit) {
     Write-Output "Streamlit: http://127.0.0.1:8501"
 }

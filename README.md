@@ -1,87 +1,114 @@
-# Ad Campaign Analytics & Optimization Project Structure
+# 📊 Ad Analytics — Big Data (Thesis)
 
-This workspace is organized for a graduation project using Apache Spark and Hadoop.
-Goal: keep backend, UI, big data pipeline, and documentation clearly separated.
+Hệ thống demo cho phân tích và tối ưu chiến dịch quảng cáo bằng Apache Spark, FastAPI và Streamlit.
 
-## Suggested workflow
-1. Put source data in `data/raw`.
-2. Run ETL in `etl/` and Spark jobs in `spark/jobs`.
-3. Store transformed data in `data/processed` and final data marts in `data/curated`.
-4. Expose results via API in `api/`.
-5. Visualize KPI and recommendations in `giao-dien/`.
+Luồng chính:
 
-## Top-level folders
-- `api/`: Backend API for dashboard and recommendation endpoints.
-- `button/`: Reusable UI button components (shared by pages).
-- `giao-dien/`: Frontend interface (pages, layouts, services).
-- `spark/`: Spark jobs, pipelines, and Spark configs.
-- `hadoop/`: HDFS, Hive, YARN scripts and local cluster configs.
-- `etl/`: Ingestion -> transformation -> serving stages.
-- `data/`: Raw/processed/curated/external datasets.
-- `docs/`: Architecture notes, report assets, meeting notes.
-- `scripts/`: Setup/run/deploy helper scripts.
-- `monitoring/`: Logs and metrics.
-- `infra/`: Docker and Hadoop compose files.
-- `notebooks/`: Exploration notebooks.
-- `tests/`: Cross-module integration or E2E tests.
+CSV dữ liệu → Spark ETL → PostgreSQL → FastAPI → Streamlit Dashboard
 
-## Important note
-You already have `data/data.csv` and `data/data_extended.csv`.
-You can keep them as-is, or move copies into `data/raw/` when starting your pipeline.
+## 🚀 Khởi động nhanh
 
-## PostgreSQL for Accounts and Authorization
-The API now persists accounts, auth sessions, and upload logs in PostgreSQL.
+```powershell
+cd e:\DoAnTotNghiep
+./docker-up.ps1
+```
 
-1. Create database:
-	- `CREATE DATABASE ad_analytics;`
-2. Set environment variable (PowerShell):
-	- `$env:DATABASE_URL="postgresql://postgres:07092004@localhost:5432/ad_analytics"`
-3. Start API:
-	- `./scripts/run/run_api.ps1`
+Hoặc dùng Docker Compose trực tiếp:
 
-## Full quality gate (recommended before every demo)
-Run all smoke tests in one command:
+```powershell
+docker compose -f infra/docker/docker-compose.yml up -d
+```
 
-- `./scripts/run/run_full_quality_gate.ps1`
+Sau đó mở:
 
-## Deterministic defense demo reset
-Rebuild a stable demo state from baseline data and regenerate artifacts:
+- Dashboard: http://localhost:8501
+- API: http://localhost:8000
+- Swagger: http://localhost:8000/docs
 
-- `powershell -ExecutionPolicy Bypass -File scripts/run/run_demo_reset.ps1`
+## 🧩 Cấu trúc chính
 
-Related defense docs:
+- api/: FastAPI backend, routes, services, ML, database
+- spark/: ETL jobs và orchestrator
+- data/: input, processed, curated, metadata
+- giao-dien/: Streamlit dashboard
+- infra/docker/: docker-compose và Dockerfiles
+- tests/: test smoke cho API, Spark và model artifacts
 
-- `docs/DEMO_REHEARSAL_CHECKLIST.md`
-- `docs/DEFENSE_TALK_TRACK_10_MIN.md`
+## ⚙️ Lệnh hữu ích
 
-Quick launch for rehearsal:
+```powershell
+./docker-up.ps1                    # Khởi động
+./docker-up.ps1 -Action "down"     # Dừng
+./docker-up.ps1 -Action "build"    # Rebuild
+./docker-up.ps1 -Action "logs"     # Xem logs
+./docker-up.ps1 -Action "ps"       # Xem trạng thái
+```
 
-- `powershell -ExecutionPolicy Bypass -File scripts/run/run_defense_stack.ps1`
-- `powershell -ExecutionPolicy Bypass -File scripts/run/run_defense_stack.ps1 -WithStreamlit`
+## ✅ Chức năng chính
 
-## Run as full web service (Docker)
+- Dashboard KPI và biểu đồ phân tích chiến dịch
+- Spark ETL cho dữ liệu quảng cáo
+- API cho dashboard, pipeline và ML
+- Quản lý active/history dataset
+- Lịch sử upload và file processed được giữ lại theo phiên
 
-- `powershell -ExecutionPolicy Bypass -File scripts/run/run_webservice_stack.ps1`
+## 🧪 Kiểm tra nhanh
 
-After startup:
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/api/summary
+```
 
-- Web app: `http://127.0.0.1:8080`
-- Health: `http://127.0.0.1:8080/health`
+## 📝 Ghi chú
 
-Detailed guide: `infra/docker/README.md`
+- File checksum `.crc` đã được dọn khỏi repo vì không cần cho code hoặc runtime.
+- Một số script dev như `scripts/seed_admin_quick.py` và `scripts/run/*.ps1` chỉ phục vụ test/dev; nếu không dùng có thể loại khỏi bản nộp hoặc đưa vào thư mục archive.
 
-Default demo accounts are seeded automatically on first run:
-- `guest / guest123`
-- `analyst / analyst123`
-- `admin / admin123`
+Nếu cần, mình có thể bổ sung thêm phần API endpoints ngắn hoặc phần hướng dẫn triển khai chi tiết hơn. 
 
-Account management endpoints (admin role):
-- `GET /api/auth/users`
-- `POST /api/auth/users`
-- `PATCH /api/auth/users/{username}`
-- `DELETE /api/auth/users/{username}`
+### Database connection failed
+```bash
+# Check PostgreSQL
+docker ps | grep postgres
 
-Self-service endpoint:
-- `POST /api/auth/change-password`
+# Connect directly
+docker exec -it adanalytics-db psql -U postgres -d ad_analytics
+```
 
-If PostgreSQL is unavailable, auth/account endpoints return HTTP `503` with clear error message.
+### Streamlit dashboard not loading
+```bash
+# Check container
+docker ps | grep streamlit
+
+# Restart
+docker restart adanalytics-streamlit
+
+# Verify API access
+docker exec adanalytics-streamlit curl http://api:8000/health
+```
+
+---
+
+## 📞 Support & Questions
+
+1. **Check logs**: `docker logs <container_name>`
+2. **API docs**: `http://localhost:8000/docs`
+3. **System status**: `http://localhost:8000/health`
+4. **All services running**: `docker compose ps`
+
+---
+
+## 📚 References
+
+- [Apache Spark](https://spark.apache.org/docs/latest/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Streamlit](https://docs.streamlit.io/)
+- [Scikit-learn](https://scikit-learn.org/)
+- [PostgreSQL](https://www.postgresql.org/docs/)
+
+---
+
+**Status**: ✅ Production-Ready for Demo & Thesis Defense  
+**Last Updated**: May 7, 2026  
+**Version**: 1.0.0  
+**Author**: Ad Analytics Team

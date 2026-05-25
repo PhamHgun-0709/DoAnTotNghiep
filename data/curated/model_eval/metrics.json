@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-03-16T06:44:39.762428+00:00",
-  "target": "conversion_success (approved_conversion >= 1)",
+  "target": "conversion_success (conversions >= 1)",
   "dataset": {
     "total_rows": 2955,
     "train_rows": 2364,

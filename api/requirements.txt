@@ -7,3 +7,9 @@ joblib
 requests
 psycopg[binary]
 python-multipart
+sqlalchemy>=2.0
+alembic
+python-dotenv
+plotly
+PyJWT>=2.0
+passlib[bcrypt]

@@ -6,18 +6,15 @@ from typing import Any
 def filter_segments(
     records: list[dict[str, Any]],
     campaign_id: str | None = None,
-    age: str | None = None,
-    gender: str | None = None,
+    age_group: str | None = None,
     suggested_action: str | None = None,
 ) -> list[dict[str, Any]]:
     filtered = records
 
     if campaign_id:
         filtered = [r for r in filtered if str(r.get("campaign_id", "")) == campaign_id]
-    if age:
-        filtered = [r for r in filtered if str(r.get("age", "")) == age]
-    if gender:
-        filtered = [r for r in filtered if str(r.get("gender", "")).lower() == gender.lower()]
+    if age_group:
+        filtered = [r for r in filtered if str(r.get("age_group", "")) == age_group]
     if suggested_action:
         filtered = [r for r in filtered if str(r.get("suggested_action", "")).lower() == suggested_action.lower()]
 
@@ -47,8 +44,7 @@ def budget_plan(records: list[dict[str, Any]], total_budget: float, top_n: int =
             {
                 "segment_id": row.get("segment_id"),
                 "campaign_id": row.get("campaign_id"),
-                "age": row.get("age"),
-                "gender": row.get("gender"),
+                "age_group": row.get("age_group"),
                 "suggested_action": row.get("suggested_action"),
                 "recommendation_score": round(score, 6),
                 "weight": round(normalized_weight, 6),

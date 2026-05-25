@@ -20,8 +20,7 @@ def _is_valid_gender(value: str) -> bool:
 def filter_ads(
     records: list[dict[str, Any]],
     campaign_id: str | None = None,
-    age: str | None = None,
-    gender: str | None = None,
+    age_group: str | None = None,
     quality_label: str | None = None,
     min_ctr: float | None = None,
     max_cpa: float | None = None,
@@ -30,10 +29,8 @@ def filter_ads(
 
     if campaign_id:
         filtered = [r for r in filtered if str(r["campaign_id"]) == campaign_id]
-    if age:
-        filtered = [r for r in filtered if r["age"] == age]
-    if gender:
-        filtered = [r for r in filtered if str(r["gender"]).lower() == gender.lower()]
+    if age_group:
+        filtered = [r for r in filtered if str(r.get("age_group", "")).lower() == age_group.lower()]
     if quality_label:
         filtered = [r for r in filtered if str(r["quality_label"]).lower() == quality_label.lower()]
     if min_ctr is not None:
@@ -50,19 +47,28 @@ def build_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
         return {
             "total_ads": 0,
             "total_spent": 0.0,
-            "total_approved_conversion": 0.0,
+            "total_impressions": 0.0,
+            "total_conversions": 0.0,
             "avg_ctr": 0.0,
             "avg_cvr": 0.0,
             "avg_cpc": 0.0,
+            "avg_cpm": 0.0,
             "avg_cpa": 0.0,
             "quality_distribution": {"good": 0, "average": 0, "bad": 0},
         }
 
-    spent_sum = sum(_safe_number(r["spent"]) for r in records)
-    approved_conversion_sum = sum(_safe_number(r["approved_conversion"]) for r in records)
+    spent_sum = sum(_safe_number(r["spend"]) for r in records)
+    impressions_sum = sum(_safe_number(r["impressions"]) for r in records)
+    conversions_sum = sum(_safe_number(r["conversions"]) for r in records)
+    # Compute revenue if present; fallback to conversions * estimated conversion value
+    revenue_sum = sum(_safe_number(r.get("revenue")) for r in records)
+    if revenue_sum == 0 and conversions_sum > 0:
+        # fallback heuristic: assume avg conversion value = 10
+        revenue_sum = conversions_sum * 10.0
     ctr_avg = sum(_safe_number(r["ctr"]) for r in records) / count
     cvr_avg = sum(_safe_number(r["cvr"]) for r in records) / count
     cpc_avg = sum(_safe_number(r["cpc"]) for r in records) / count
+    cpm_avg = sum(_safe_number(r.get("cpm", 0)) for r in records) / count
 
     cpa_values = [_safe_number(r["cpa"]) for r in records if r["cpa"] is not None]
     cpa_avg = sum(cpa_values) / len(cpa_values) if cpa_values else 0.0
@@ -72,10 +78,13 @@ def build_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "total_ads": count,
         "total_spent": round(spent_sum, 4),
-        "total_approved_conversion": round(approved_conversion_sum, 4),
+        "total_revenue": round(revenue_sum, 2),
+        "total_impressions": round(impressions_sum, 0),
+        "total_conversions": round(conversions_sum, 4),
         "avg_ctr": round(ctr_avg, 6),
         "avg_cvr": round(cvr_avg, 6),
         "avg_cpc": round(cpc_avg, 6),
+        "avg_cpm": round(cpm_avg, 2),
         "avg_cpa": round(cpa_avg, 6),
         "quality_distribution": {
             "good": quality_counter.get("good", 0),
@@ -101,7 +110,7 @@ def chart_campaign_kpi(records: list[dict[str, Any]], group_by: str = "campaign_
         key = str(record.get(group_by, ""))
         ctr_map[key].append(_safe_number(record["ctr"]))
         cvr_map[key].append(_safe_number(record["cvr"]))
-        spent_map[key] += _safe_number(record["spent"])
+        spent_map[key] += _safe_number(record["spend"])
 
     grouped_rows = []
     for key in ctr_map.keys():
@@ -110,11 +119,11 @@ def chart_campaign_kpi(records: list[dict[str, Any]], group_by: str = "campaign_
                 "label": key,
                 "ctr": round(sum(ctr_map[key]) / len(ctr_map[key]), 6),
                 "cvr": round(sum(cvr_map[key]) / len(cvr_map[key]), 6),
-                "spent": round(spent_map[key], 2),
+                "spend": round(spent_map[key], 2),
             }
         )
 
-    grouped_rows.sort(key=lambda item: item["spent"], reverse=True)
+    grouped_rows.sort(key=lambda item: item["spend"], reverse=True)
     if top_n is not None:
         grouped_rows = grouped_rows[:top_n]
 
@@ -122,15 +131,15 @@ def chart_campaign_kpi(records: list[dict[str, Any]], group_by: str = "campaign_
         "labels": [row["label"] for row in grouped_rows],
         "ctr": [row["ctr"] for row in grouped_rows],
         "cvr": [row["cvr"] for row in grouped_rows],
-        "spent": [row["spent"] for row in grouped_rows],
+        "spend": [row["spend"] for row in grouped_rows],
     }
 
 
 def chart_kpi_by_age(records: list[dict[str, Any]]) -> dict[str, Any]:
-    valid_records = [r for r in records if _is_valid_age_band(str(r.get("age", "")))]
-    return chart_campaign_kpi(valid_records, group_by="age", top_n=None)
+    valid_records = [r for r in records if r.get("age_group")]
+    return chart_campaign_kpi(valid_records, group_by="age_group", top_n=None)
 
 
 def chart_kpi_by_gender(records: list[dict[str, Any]]) -> dict[str, Any]:
-    valid_records = [r for r in records if _is_valid_gender(str(r.get("gender", "")))]
-    return chart_campaign_kpi(valid_records, group_by="gender", top_n=None)
+    # Gender not available in current schema, return empty chart
+    return {"labels": [], "values": [], "ctr": [], "cvr": [], "spend": []}
