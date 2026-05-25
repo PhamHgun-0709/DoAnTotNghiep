@@ -35,17 +35,26 @@ def render_dashboard_page(
     try:
         health = api_get(api_base, "/health")
     except Exception as exc:
-        health = {"api": "Không truy cập được", "db": "Không rõ", "spark": "Không rõ"}
+        health = {"status": "error", "postgres_ready": False, "all_required_assets_ready": False}
         st.warning(f"Không kết nối được API tại {api_base}: {exc}")
 
-    dash1, dash2, dash3 = st.columns(3)
-    dash1.metric("API", _status_display(health.get("api", "Không rõ")))
-    dash2.metric("CSDL", _status_display(health.get("db", "Không rõ")))
-    dash3.metric("Spark", _status_display(health.get("spark", "Sẵn sàng")))
+    dash1, dash2, dash3 = st.columns(3, gap="small")
+    dash1.metric("API", _status_display(health.get("status", "Không rõ")))
+    dash2.metric("CSDL", _status_display(health.get("postgres_ready", False)))
+    dash3.metric("Dữ liệu sẵn sàng", _status_display(health.get("all_required_assets_ready", False)))
+
+    assets = health.get("data_assets") or {}
+    if isinstance(assets, dict):
+        scored_ads = assets.get("scored_ads_csv", {})
+        budget_reco = assets.get("budget_recommendations_csv", {})
+        st.caption(
+            f"Processed: {'có' if scored_ads.get('exists') else 'chưa có'} | "
+            f"Budget reco: {'có' if budget_reco.get('exists') else 'chưa có'}"
+        )
 
     if dashboard_ctx.get("has_data"):
         summary = dashboard_ctx.get("summary", {})
-        cards = st.columns(4)
+        cards = st.columns(4, gap="small")
         cards[0].metric("Doanh thu", format_vnd(summary.get("total_revenue", 0.0)))
         cards[1].metric("CTR", f"{float(summary.get('avg_ctr', 0.0)) * 100:.2f}%")
         cards[2].metric("Chiến dịch", summary.get("total_ads", 0))
@@ -97,7 +106,7 @@ def render_profile_page(api_base: str, token: str | None, guest_message: str) ->
 
     try:
         me = api_get(api_base, "/api/auth/me", token=token)
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3 = st.columns(3, gap="small")
         c1.metric("Username", me.get("username", ""))
         c2.metric("Role", str(me.get("role", "")))
         c3.metric("Expires", str(me.get("expires_at", "")))
@@ -153,13 +162,13 @@ def render_analytics_page(
         data = api_get(api_base, "/api/ml/analytics", token=token)
         metrics = data.get("metrics", {})
         count = data.get("count", 0)
-        cols = st.columns(4)
+        cols = st.columns(4, gap="small")
         cols[0].metric("Số dòng", count)
         cols[1].metric("ROAS", metrics.get("avg_roas", 0.0))
         cols[2].metric("ROI", f"{metrics.get('avg_roi', 0.0)}%")
         cols[3].metric("CPA", metrics.get("avg_cpa", 0.0))
 
-        insight_cols = st.columns(3)
+        insight_cols = st.columns(3, gap="small")
         insight_cols[0].metric("Độ chính xác", "94%")
         insight_cols[1].metric("Huấn luyện gần nhất", "Hôm nay")
         insight_cols[2].metric("Mô hình", "RandomForest")
@@ -174,7 +183,7 @@ def render_analytics_page(
             if all(v == 0.0 for v in (roas_val, roi_val, cpa_val, cvr_val)):
                 st.info("Không có dữ liệu phân tích đủ để hiển thị các biểu đồ ROAS/ROI/CPA/CVR.")
             else:
-                chart_cols = st.columns(3)
+                chart_cols = st.columns(3, gap="small")
 
                 df_roas = pd.DataFrame([{"Metric": "ROAS", "Value": roas_val}])
                 fig_roas = px.bar(df_roas, x="Metric", y="Value", template="plotly_dark", color_discrete_sequence=['#636EFA'])
@@ -220,7 +229,7 @@ def render_reports_page(
     try:
         data = api_get(api_base, "/api/reports", token=token)
         summary = data.get("summary", {})
-        cols = st.columns(4)
+        cols = st.columns(4, gap="small")
         cols[0].metric("Chiến dịch", summary.get("total_ads", 0))
         cols[1].metric("Chi tiêu", summary.get("total_spent", 0.0))
         cols[2].metric("CTR", f"{summary.get('avg_ctr', 0.0) * 100:.2f}%")

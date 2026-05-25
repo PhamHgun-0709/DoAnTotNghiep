@@ -27,26 +27,27 @@ except Exception:  # pragma: no cover
 from api_client import api_delete, api_get, api_get_bytes, api_patch_json, api_post_file, api_post_json
 from dashboard_context import load_dashboard_context
 try:
-    from admin_pages import (
-        render_ml_page,
-        render_sessions_page,
-        render_spark_page,
-        render_user_management_page,
-        render_dataset_admin_page,
-    )
+    import admin_pages as _admin_pages
     _ADMIN_IMPORT_ERROR = None
 except Exception as _admin_exc:  # pragma: no cover - runtime import may fail in some environments
+    _admin_pages = None
     _ADMIN_IMPORT_ERROR = _admin_exc
 
-    def _import_error_renderer(*args, **kwargs):
-        st.error(f"Admin UI failed to load: {_ADMIN_IMPORT_ERROR}")
+def _admin_import_error_renderer(*args, **kwargs):
+    st.error(f"Admin UI failed to load: {_ADMIN_IMPORT_ERROR}")
 
-    # provide fallbacks so the app doesn't crash at import time
-    render_ml_page = _import_error_renderer
-    render_sessions_page = _import_error_renderer
-    render_spark_page = _import_error_renderer
-    render_user_management_page = _import_error_renderer
-    render_dataset_admin_page = _import_error_renderer
+if _admin_pages is not None:
+    render_ml_page = getattr(_admin_pages, "render_ml_page", _admin_import_error_renderer)
+    render_sessions_page = getattr(_admin_pages, "render_sessions_page", _admin_import_error_renderer)
+    render_spark_page = getattr(_admin_pages, "render_spark_page", _admin_import_error_renderer)
+    render_user_management_page = getattr(_admin_pages, "render_user_management_page", _admin_import_error_renderer)
+    render_dataset_admin_page = getattr(_admin_pages, "render_dataset_admin_page", _admin_import_error_renderer)
+else:
+    render_ml_page = _admin_import_error_renderer
+    render_sessions_page = _admin_import_error_renderer
+    render_spark_page = _admin_import_error_renderer
+    render_user_management_page = _admin_import_error_renderer
+    render_dataset_admin_page = _admin_import_error_renderer
 from local_analytics import (
     aggregate_performance as la_aggregate_performance,
     budget_recommendation as la_budget_recommendation,
@@ -1471,7 +1472,18 @@ elif nav_mode == "ml":
     render_ml_page(DEFAULT_API, role, token, t("token_invalid"))
 
 elif nav_mode == "user_management":
-    render_user_management_page(DEFAULT_API, role, token, t("token_invalid"))
+    current_username = (st.session_state.get("auth") or {}).get("username")
+    try:
+        render_user_management_page(
+            DEFAULT_API,
+            role,
+            token,
+            t("token_invalid"),
+            current_username,
+        )
+    except TypeError:
+        # Compatibility with older deployed containers that still have the 4-arg version.
+        render_user_management_page(DEFAULT_API, role, token, t("token_invalid"))
 
 elif nav_mode == "admin":
     # Admin area: sessions + dataset admin

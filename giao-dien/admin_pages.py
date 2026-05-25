@@ -76,7 +76,13 @@ def render_ml_page(api_base: str, role: str, token: str | None, token_invalid_me
             st.error(str(exc))
 
 
-def render_user_management_page(api_base: str, role: str, token: str | None, token_invalid_message: str) -> None:
+def render_user_management_page(
+    api_base: str,
+    role: str,
+    token: str | None,
+    token_invalid_message: str,
+    current_username: str | None = None,
+) -> None:
     st.markdown("<h2 class='section-header'>Quản lý người dùng</h2>", unsafe_allow_html=True)
     if role != "admin":
         st.error("Access denied: admin only")
@@ -100,7 +106,7 @@ def render_user_management_page(api_base: str, role: str, token: str | None, tok
         active_users_count = len(active_users_set)
 
         # KPIs row
-        k1, k2, k3, k4 = st.columns(4)
+        k1, k2, k3, k4 = st.columns(4, gap="small")
         k1.metric("Total Users", str(total_users))
         # analysts count
         analysts_count = sum(1 for u in users if (u.get("role") or "").lower() == "analyst")
@@ -110,6 +116,10 @@ def render_user_management_page(api_base: str, role: str, token: str | None, tok
 
         st.markdown("---")
         st.subheader("User list")
+        filter_cols = st.columns([1.6, 1, 1], gap="small")
+        search_term = filter_cols[0].text_input("Tìm người dùng", value="", placeholder="Nhập username...", label_visibility="collapsed")
+        role_filter = filter_cols[1].selectbox("Role", ["Tất cả", "admin", "analyst", "user"], label_visibility="collapsed")
+        status_filter = filter_cols[2].selectbox("Trạng thái", ["Tất cả", "Online", "Offline", "Disabled"], label_visibility="collapsed")
 
         if not users:
             st.info("Không tìm thấy người dùng")
@@ -125,54 +135,91 @@ def render_user_management_page(api_base: str, role: str, token: str | None, tok
                 if not prev or (ts and ts > prev):
                     last_login[uname] = ts
 
-            # Render simplified table rows with actions
+            filtered_users = []
+            search_lower = search_term.strip().lower()
             for u in users:
-                uid = u.get("id")
-                uname = u.get("username")
-                urole = u.get("role") or "user"
+                uname = str(u.get("username") or "")
+                urole = str(u.get("role") or "user").lower()
                 is_active = bool(u.get("is_active", True))
                 status = "Disabled" if not is_active else ("Online" if uname in active_users_set else "Offline")
+                if search_lower and search_lower not in uname.lower():
+                    continue
+                if role_filter != "Tất cả" and urole != role_filter:
+                    continue
+                if status_filter != "Tất cả" and status != status_filter:
+                    continue
+                filtered_users.append((u, status, urole, is_active))
+
+            st.caption(f"Hiển thị {len(filtered_users)}/{len(users)} người dùng")
+
+            header = st.columns([2.2, 1, 1, 1.4, 2.2], gap="small")
+            header[0].markdown("**Người dùng**")
+            header[1].markdown("**Vai trò**")
+            header[2].markdown("**Trạng thái**")
+            header[3].markdown("**Đăng nhập cuối**")
+            header[4].markdown("**Hành động**")
+
+            if not filtered_users:
+                st.info("Không có người dùng khớp bộ lọc hiện tại.")
+                return
+
+            # Render each user as a compact card-like row
+            for u, status, urole, is_active in filtered_users:
+                uid = u.get("id")
+                uname = u.get("username")
                 lj = last_login.get(uname, "-")
+                is_self = bool(current_username) and uname == current_username
 
-                cols = st.columns([2, 1, 1, 1, 2])
+                st.markdown("---")
+                cols = st.columns([2.2, 1, 1, 1.4, 2.2], gap="small")
                 with cols[0]:
-                    st.text(uname)
+                    st.markdown(f"**{uname}**")
+                    st.caption(f"ID: {uid} · {u.get('email') or '-'}")
                 with cols[1]:
-                    st.text(urole)
+                    st.markdown(f"<span class='status-badge status-running'>{urole}</span>", unsafe_allow_html=True)
                 with cols[2]:
-                    st.text(status)
+                    status_class = "status-success" if status == "Online" else ("status-danger" if status == "Disabled" else "status-warning")
+                    st.markdown(f"<span class='status-badge {status_class}'>{status}</span>", unsafe_allow_html=True)
                 with cols[3]:
-                    st.text(lj)
-                with cols[4]:
-                    # Action buttons
-                    if is_active:
-                        if st.button("Disable", key=f"disable-{uid}"):
+                    st.caption(f"{lj}")
+
+                if is_self:
+                    with cols[4]:
+                        st.caption("Tài khoản hiện tại")
+                        st.info("Không thể vô hiệu hóa, xóa hoặc reset vai trò của chính mình.")
+                else:
+                    actions = cols[4].columns([1, 1, 1], gap="small")
+                    with actions[0]:
+                        if st.button("Vô hiệu hóa" if is_active else "Kích hoạt", key=f"toggle-{uid}", use_container_width=True):
                             try:
-                                api_patch_json(api_base, f"/api/admin/users/{uid}", {"is_active": False}, token=token)
-                                st.success(f"Disabled {uname}")
-                            except Exception as exc:
-                                st.error(str(exc))
-                    else:
-                        if st.button("Enable", key=f"enable-{uid}"):
-                            try:
-                                api_patch_json(api_base, f"/api/admin/users/{uid}", {"is_active": True}, token=token)
-                                st.success(f"Enabled {uname}")
+                                api_patch_json(
+                                    api_base,
+                                    f"/api/admin/users/{uid}",
+                                    {"is_active": (not is_active)},
+                                    token=token,
+                                )
+                                st.success(f"Đã cập nhật {uname}")
+                                st.rerun()
                             except Exception as exc:
                                 st.error(str(exc))
 
-                    if st.button("Delete", key=f"delete-{uid}"):
-                        try:
-                            api_delete(api_base, f"/api/admin/users/{uid}", token=token)
-                            st.success(f"Deleted {uname}")
-                        except Exception as exc:
-                            st.error(str(exc))
+                    with actions[1]:
+                        if st.button("Xóa", key=f"delete-{uid}", use_container_width=True):
+                            try:
+                                api_delete(api_base, f"/api/admin/users/{uid}", token=token)
+                                st.success(f"Đã xóa {uname}")
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(str(exc))
 
-                    if st.button("Reset role", key=f"resetrole-{uid}"):
-                        try:
-                            api_patch_json(api_base, f"/api/admin/users/{uid}", {"role": "user"}, token=token)
-                            st.success(f"Role reset for {uname}")
-                        except Exception as exc:
-                            st.error(str(exc))
+                    with actions[2]:
+                        if st.button("Reset role", key=f"resetrole-{uid}", use_container_width=True):
+                            try:
+                                api_patch_json(api_base, f"/api/admin/users/{uid}", {"role": "user"}, token=token)
+                                st.success(f"Đã đặt lại vai trò cho {uname}")
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(str(exc))
     except Exception as exc:
         st.error(str(exc))
 
