@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -13,7 +14,8 @@ class DatasetMetadata(BaseModel):
     uploaded_role: str
     scored_rows: int
     segment_rows: int
-    updated_at: str
+    updated_at: Optional[datetime]
+    created_at: Optional[datetime]
 
     class Config:
         extra = "allow"

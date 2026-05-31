@@ -35,9 +35,9 @@ def _write_single_csv(df: pd.DataFrame, output_dir: Path, file_name: str) -> Non
     output_dir.mkdir(parents=True, exist_ok=True)
     # Preserve previous outputs (do not delete old parts).
     # Write with a timestamped filename so history is kept for auditing.
-    from datetime import datetime
+    from datetime import datetime, timezone
 
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     target_name = f"part-{ts}.csv"
     df.to_csv(output_dir / target_name, index=False)
 

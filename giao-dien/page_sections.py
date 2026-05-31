@@ -7,6 +7,40 @@ import plotly.express as px
 import streamlit as st
 
 from api_client import api_get
+from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    from datetime import timezone as ZoneInfo
+
+_DISPLAY_TZ = ZoneInfo("Asia/Ho_Chi_Minh") if hasattr(ZoneInfo, '__class__') or True else None
+
+def _format_ts(ts: any) -> str:
+    if not ts:
+        return "-"
+    try:
+        if isinstance(ts, str):
+            try:
+                dt = datetime.fromisoformat(ts)
+            except Exception:
+                from dateutil import parser
+
+                dt = parser.parse(ts)
+        elif isinstance(ts, datetime):
+            dt = ts
+        else:
+            return str(ts)
+        if dt.tzinfo is None:
+            from datetime import timezone
+
+            dt = dt.replace(tzinfo=timezone.utc)
+        try:
+            dt_local = dt.astimezone(_DISPLAY_TZ)
+        except Exception:
+            dt_local = dt
+        return dt_local.strftime("%Y-%m-%d %H:%M:%S %z")
+    except Exception:
+        return str(ts)
 
 
 def render_dashboard_page(
@@ -65,18 +99,13 @@ def render_dashboard_page(
             active_dataset = dashboard_ctx.get("active_dataset") or {}
             st.markdown("**Dataset đang hoạt động**")
             if active_dataset and active_dataset.get("file_name"):
-                st.dataframe(
-                    pd.DataFrame([
-                        {
-                            "filename": active_dataset.get("file_name", ""),
-                            "uploaded_by": active_dataset.get("uploaded_by", ""),
-                            "active": True,
-                            "created_at": active_dataset.get("updated_at", ""),
-                        }
-                    ]),
-                    use_container_width=True,
-                    hide_index=True,
-                )
+                row = {
+                    "filename": active_dataset.get("file_name", ""),
+                    "uploaded_by": active_dataset.get("uploaded_by", ""),
+                    "active": True,
+                    "created_at": _format_ts(active_dataset.get("created_at") or active_dataset.get("updated_at")),
+                }
+                st.dataframe(pd.DataFrame([row]), use_container_width=True, hide_index=True)
             else:
                 st.info("Hiện không có dataset đang hoạt động. Vào mục 'Quản lý dữ liệu' để tải lên CSV.")
         with state_cols[1]:
@@ -84,7 +113,11 @@ def render_dashboard_page(
             st.markdown("**Lịch sử dataset gần nhất**")
             if history:
                 history_df = pd.DataFrame(history)
-                show_cols = [col for col in ["file_name", "uploaded_by", "active", "created_at"] if col in history_df.columns]
+                # Normalize timestamp columns for display
+                for tcol in ("created_at", "updated_at"):
+                    if tcol in history_df.columns:
+                        history_df[tcol] = history_df[tcol].apply(lambda v: _format_ts(v))
+                show_cols = [col for col in ["file_name", "uploaded_by", "active", "created_at", "updated_at"] if col in history_df.columns]
                 if show_cols:
                     st.dataframe(history_df[show_cols], use_container_width=True, hide_index=True, height=220)
             else:
@@ -109,7 +142,7 @@ def render_profile_page(api_base: str, token: str | None, guest_message: str) ->
         c1, c2, c3 = st.columns(3, gap="small")
         c1.metric("Username", me.get("username", ""))
         c2.metric("Role", str(me.get("role", "")))
-        c3.metric("Expires", str(me.get("expires_at", "")))
+        c3.metric("Expires", _format_ts(me.get("expires_at")))
         st.caption("Hồ sơ được tóm tắt để tránh hiển thị payload thô trên giao diện.")
     except Exception as exc:
         st.error(str(exc))

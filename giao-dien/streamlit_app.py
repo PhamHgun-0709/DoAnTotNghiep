@@ -1398,6 +1398,8 @@ with st.sidebar:
     role = str(auth.get("role") or "guest")
     token = auth.get("token")
 
+    # Show effective API base for debugging network issues (override with API_URL env var)
+    st.caption(f"API base: {DEFAULT_API}")
     dashboard_ctx: dict[str, Any] = load_dashboard_context(DEFAULT_API, token)
 
     st.markdown(f"## {t('nav_title')}")

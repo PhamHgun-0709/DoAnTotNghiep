@@ -216,7 +216,8 @@ print(json.dumps(result, indent=2, default=str))
         processed_path = f"{self.output_dir}/features_engineered"
         df = spark.read.csv(processed_path, header=True, inferSchema=True)
         
-        export_path = f"{self.output_dir}/export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        from datetime import datetime, timezone
+        export_path = f"{self.output_dir}/export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         
         if output_format == "parquet":
             df.write.mode("overwrite").parquet(export_path)

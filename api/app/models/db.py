@@ -6,7 +6,7 @@ Models are used by Alembic for migrations and by the API for data operations.
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, JSON, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
@@ -51,8 +51,8 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(50), default="analyst")  # analyst, admin, guest
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
@@ -68,7 +68,7 @@ class Session(Base):
     session_token = Column(String(255), unique=True, index=True, nullable=False)
     ip_address = Column(String(45))
     user_agent = Column(String(500))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
     is_active = Column(Boolean, default=True)
 
@@ -87,8 +87,8 @@ class Prediction(Base):
     input_features = Column(JSON)  # Store input data
     prediction = Column(JSON)  # Prediction results
     confidence = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user = relationship("User", back_populates="predictions")
@@ -107,7 +107,7 @@ class UploadLog(Base):
     num_errors = Column(Integer, default=0)
     status = Column(String(50))  # success, partial_success, failed
     error_details = Column(String(1000))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     processing_time_seconds = Column(Float)
 
     # Relationships
@@ -126,8 +126,8 @@ class Dataset(Base):
     active = Column(Boolean, default=False, index=True)
     scored_rows = Column(Integer, default=0)
     segment_rows = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class SparkJob(Base):
@@ -145,7 +145,7 @@ class SparkJob(Base):
     completed_at = Column(DateTime)
     execution_time_seconds = Column(Float)
     records_processed = Column(Integer)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class ModelMetric(Base):
@@ -159,8 +159,8 @@ class ModelMetric(Base):
     metric_value = Column(Float)
     dataset_size = Column(Integer)
     training_time_seconds = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 def init_db():

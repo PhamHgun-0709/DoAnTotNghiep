@@ -42,8 +42,18 @@ def _fallback_load_active_dataset() -> dict[str, Any] | None:
 
 def _fallback_save_active_dataset(payload: dict[str, Any]) -> dict[str, Any]:
     _ensure_metadata_dir()
+    def _to_serializable(obj: Any):
+        try:
+            from datetime import datetime
+
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+        except Exception:
+            pass
+        return obj
+
     with _active_dataset_file().open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        json.dump(payload, handle, ensure_ascii=False, indent=2, default=_to_serializable)
     return payload
 
 
@@ -66,8 +76,18 @@ def _fallback_save_dataset_history(entry: dict[str, Any], limit: int = 20) -> li
     history.insert(0, entry)
     trimmed = history[: max(1, int(limit))]
     _ensure_metadata_dir()
+    def _to_serializable(obj: Any):
+        try:
+            from datetime import datetime
+
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+        except Exception:
+            pass
+        return obj
+
     with _dataset_history_file().open("w", encoding="utf-8") as handle:
-        json.dump(trimmed, handle, ensure_ascii=False, indent=2)
+        json.dump(trimmed, handle, ensure_ascii=False, indent=2, default=_to_serializable)
     return trimmed
 
 
@@ -101,8 +121,8 @@ def load_active_dataset() -> dict[str, Any] | None:
         "uploaded_role": str(row[4] or ""),
         "scored_rows": int(row[5] or 0),
         "segment_rows": int(row[6] or 0),
-        "created_at": row[7].isoformat() if row[7] else "",
-        "updated_at": row[8].isoformat() if row[8] else "",
+        "created_at": row[7] if row[7] else None,
+        "updated_at": row[8] if row[8] else None,
     }
 
 
@@ -146,8 +166,8 @@ def save_active_dataset(
 
     if row:
         payload["id"] = int(row[0])
-        payload["created_at"] = row[1].isoformat() if row[1] else ""
-        payload["updated_at"] = row[2].isoformat() if row[2] else ""
+        payload["created_at"] = row[1] if row[1] else None
+        payload["updated_at"] = row[2] if row[2] else None
     return payload
 
 
@@ -182,8 +202,8 @@ def load_dataset_history(limit: int = 10) -> list[dict[str, Any]]:
                 "active": bool(row[5]),
                 "scored_rows": int(row[6] or 0),
                 "segment_rows": int(row[7] or 0),
-                "created_at": row[8].isoformat() if row[8] else "",
-                "updated_at": row[9].isoformat() if row[9] else "",
+                "created_at": row[8] if row[8] else None,
+                "updated_at": row[9] if row[9] else None,
             }
         )
     return items
